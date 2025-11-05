@@ -1,0 +1,241 @@
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+
+  @@map("sessions")
+  @@unique([token])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model User {
+  id            String      @id @default(cuid())
+  nama          String      @db.VarChar(100)
+  email         String      @unique @db.VarChar(100)
+  emailVerified DateTime?   @map("email_verified")
+  password      String      @db.VarChar(255)
+  role          Role        @default(PEMBELI)
+  noTelepon     String?     @map("no_telepon") @db.VarChar(15)
+  alamat        String?
+  image         String?
+  tanggalDaftar DateTime    @default(now()) @map("tanggal_daftar")
+  lastUpdate    DateTime    @default(now()) @updatedAt @map("last_update")
+  accounts      Account[]
+  toko          Penjual?
+  sessions      Session[]
+  transaksi     Transaksi[]
+  ulasan        Ulasan[]
+
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([email])
+  @@map("users")
+}
+
+model Penjual {
+  id               String   @id @default(cuid())
+  userId           String   @unique @map("user_id")
+  namaRestoran     String   @map("nama_restoran") @db.VarChar(150)
+  jenisUsaha       String   @map("jenis_usaha") @db.VarChar(50)
+  statusVerifikasi String   @default("pending") @map("status_verifikasi") @db.VarChar(20)
+  tanggalDaftar    DateTime @default(now()) @map("tanggal_daftar")
+  lastUpdate       DateTime @default(now()) @updatedAt @map("last_update")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  produk           Produk[]
+
+  @@index([userId])
+  @@map("penjual")
+}
+
+model KategoriMakanan {
+  id         String   @id @default(cuid())
+  nama       String   @unique @db.VarChar(50)
+  deskripsi  String?
+  lastUpdate DateTime @default(now()) @updatedAt @map("last_update")
+  produk     Produk[]
+
+  @@map("kategori_makanan")
+}
+
+model Produk {
+  id              String            @id @default(cuid())
+  penjualId       String            @map("penjual_id")
+  kategoriId      String            @map("kategori_id")
+  namaProduk      String            @map("nama_produk") @db.VarChar(100)
+  deskripsi       String?
+  hargaNormal     Decimal           @map("harga_normal") @db.Decimal(10, 2)
+  hargaDiskon     Decimal           @map("harga_diskon") @db.Decimal(10, 2)
+  stok            Int
+  waktuKadaluarsa DateTime          @map("waktu_kadaluarsa")
+  fotoProduk      String?           @map("foto_produk") @db.VarChar(255)
+  statusProduk    String            @default("tersedia") @map("status_produk") @db.VarChar(20)
+  tanggalPosting  DateTime          @default(now()) @map("tanggal_posting")
+  lastUpdate      DateTime          @default(now()) @updatedAt @map("last_update")
+  detailTransaksi DetailTransaksi[]
+  kategori        KategoriMakanan   @relation(fields: [kategoriId], references: [id])
+  penjual         Penjual           @relation(fields: [penjualId], references: [id], onDelete: Cascade)
+  verifikasiAI    VerifikasiAI?
+
+  @@index([penjualId])
+  @@index([kategoriId])
+  @@index([statusProduk])
+  @@map("produk")
+}
+
+model VerifikasiAI {
+  id              String   @id @default(cuid())
+  produkId        String   @unique @map("produk_id")
+  hasilVerifikasi String   @map("hasil_verifikasi") @db.VarChar(50)
+  skorKeamanan    Float    @map("skor_keamanan")
+  catatanAI       String?  @map("catatan_ai")
+  waktuVerifikasi DateTime @default(now()) @map("waktu_verifikasi")
+  statusKelayakan String   @map("status_kelayakan") @db.VarChar(20)
+  lastUpdate      DateTime @default(now()) @updatedAt @map("last_update")
+  produk          Produk   @relation(fields: [produkId], references: [id], onDelete: Cascade)
+
+  @@index([produkId])
+  @@map("verifikasi_ai")
+}
+
+model Transaksi {
+  id                String            @id @default(cuid())
+  pembeliId         String            @map("pembeli_id")
+  totalHarga        Decimal           @map("total_harga") @db.Decimal(10, 2)
+  waktuTransaksi    DateTime          @default(now()) @map("waktu_transaksi")
+  statusTransaksi   String            @default("pending") @map("status_transaksi") @db.VarChar(20)
+  waktuPengambilan  DateTime?         @map("waktu_pengambilan")
+  metodePengambilan String            @map("metode_pengambilan") @db.VarChar(30)
+  lastUpdate        DateTime          @default(now()) @updatedAt @map("last_update")
+  detailTransaksi   DetailTransaksi[]
+  pembayaran        Pembayaran?
+  pembeli           User              @relation(fields: [pembeliId], references: [id])
+  ulasan            Ulasan[]
+
+  @@index([pembeliId])
+  @@index([statusTransaksi])
+  @@map("transaksi")
+}
+
+model DetailTransaksi {
+  id          String    @id @default(cuid())
+  transaksiId String    @map("transaksi_id")
+  produkId    String    @map("produk_id")
+  jumlah      Int
+  hargaSatuan Decimal   @map("harga_satuan") @db.Decimal(10, 2)
+  subtotal    Decimal   @db.Decimal(10, 2)
+  lastUpdate  DateTime  @default(now()) @updatedAt @map("last_update")
+  produk      Produk    @relation(fields: [produkId], references: [id])
+  transaksi   Transaksi @relation(fields: [transaksiId], references: [id], onDelete: Cascade)
+
+  @@index([transaksiId])
+  @@index([produkId])
+  @@map("detail_transaksi")
+}
+
+model Pembayaran {
+  id               String    @id @default(cuid())
+  transaksiId      String    @unique @map("transaksi_id")
+  metodePembayaran String    @map("metode_pembayaran") @db.VarChar(30)
+  jumlahBayar      Decimal   @map("jumlah_bayar") @db.Decimal(10, 2)
+  waktuPembayaran  DateTime  @default(now()) @map("waktu_pembayaran")
+  statusPembayaran String    @default("pending") @map("status_pembayaran") @db.VarChar(20)
+  buktiPembayaran  String?   @map("bukti_pembayaran") @db.VarChar(255)
+  lastUpdate       DateTime  @default(now()) @updatedAt @map("last_update")
+  transaksi        Transaksi @relation(fields: [transaksiId], references: [id], onDelete: Cascade)
+
+  @@index([transaksiId])
+  @@map("pembayaran")
+}
+
+model Ulasan {
+  id            String    @id @default(cuid())
+  transaksiId   String    @map("transaksi_id")
+  pembeliId     String    @map("pembeli_id")
+  rating        Int
+  komentar      String?
+  tanggalUlasan DateTime  @default(now()) @map("tanggal_ulasan")
+  lastUpdate    DateTime  @default(now()) @updatedAt @map("last_update")
+  pembeli       User      @relation(fields: [pembeliId], references: [id])
+  transaksi     Transaksi @relation(fields: [transaksiId], references: [id], onDelete: Cascade)
+
+  @@index([transaksiId])
+  @@index([pembeliId])
+  @@map("ulasan")
+}
+
+enum Role {
+  PEMBELI
+  PENJUAL
+  ADMIN
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@map("verification")
+}
